@@ -5,10 +5,13 @@ export interface Student {
   email: string;
   phone: string;
   class: string;
+  classSection?: string;
   status: 'active' | 'inactive' | 'suspended' | 'graduated';
   enrollmentDate: string;
   totalFees: number;
   paidAmount: number;
+  totalFeesCurrency?: Currency;
+  paidAmountCurrency?: Currency;
   outstandingBalance: number;
   address: string;
   parentName: string;
@@ -23,12 +26,18 @@ export interface Student {
   documents?: StudentDocument[];
 }
 
-export type Currency = 'USD' | 'ZAR' | 'ZIG';
+export type Currency = 'USD' | 'ZAR' | 'ZiG';
 
 export interface ExchangeRate {
   USD: number;
   ZAR: number;
-  ZIG: number;
+  ZiG: number;
+}
+
+export interface PaymentAllocation {
+  category: string;
+  percentage: number;
+  amount: number;
 }
 
 export interface Payment {
@@ -42,6 +51,8 @@ export interface Payment {
   description: string;
   invoiceNumber: string;
   status: 'completed' | 'pending' | 'failed';
+  accountId?: string;
+  allocations?: PaymentAllocation[];
 }
 
 export interface Invoice {
@@ -64,6 +75,12 @@ export interface InvoiceItem {
   total: number;
 }
 
+export interface CurrencyBreakdown {
+  USD: number;
+  ZAR: number;
+  ZiG: number;
+}
+
 export interface FinancialSummary {
   totalRevenue: number;
   monthlyRevenue: number;
@@ -72,6 +89,9 @@ export interface FinancialSummary {
   totalStudents: number;
   activeStudents: number;
   recentPayments: Payment[];
+  totalRevenueByCurrency: CurrencyBreakdown;
+  monthlyRevenueByCurrency: CurrencyBreakdown;
+  dailyRevenueByCurrency: CurrencyBreakdown;
 }
 
 export interface User {
@@ -158,6 +178,26 @@ export interface StaffAttendanceRecord {
   date: string;
   status: 'present' | 'absent' | 'late';
   notes?: string;
+}
+
+export interface Expense {
+  id: string;
+  description: string;
+  amount: number;
+  currency: Currency;
+  category: string;
+  date: string;
+  paymentMethod: 'cash' | 'check' | 'bank_transfer';
+  createdAt: string;
+  updatedAt: string;
+  accountId?: string;
+  allocationCategory?: string;
+}
+
+export interface ExpenseSummary {
+  categorySummary: { [key: string]: number };
+  totalExpensesByCurrency: CurrencyBreakdown;
+  monthlyExpensesByCurrency: CurrencyBreakdown;
 }
 
 export interface SystemSettings {

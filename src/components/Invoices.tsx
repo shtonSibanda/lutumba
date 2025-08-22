@@ -15,10 +15,15 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState({
-    studentId: '',
-    dueDate: '',
-    items: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }] as InvoiceItem[]
+  studentId: '',
+  dueDate: '',
+  currency: 'USD',
+  items: [{ id: '1', description: '', quantity: 1, unitPrice: 0, total: 0 }] as InvoiceItem[]
   });
+  const [mode, setMode] = useState<'student' | 'class'>('student');
+  const [studentQuery, setStudentQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const classes = Array.from(new Set(students.map(s => s.class).filter(Boolean)));
 
   const filteredInvoices = invoices.filter(invoice =>
     invoice.studentName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -60,27 +65,51 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
   };
 
   const calculateTotal = () => {
-    return formData.items.reduce((sum, item) => sum + item.total, 0);
+  return formData.items.reduce((sum, item) => sum + (item.total || 0), 0);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const selectedStudent = students.find(s => s.id === formData.studentId);
-    if (!selectedStudent) return;
+    if (mode === 'student') {
+      const selectedStudent = students.find(s => s.id === formData.studentId);
+      if (!selectedStudent) return;
 
-    const newInvoice: Invoice = {
-      id: Date.now().toString(),
-      invoiceNumber: `INV-${Date.now()}`,
-      studentId: formData.studentId,
-      studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
-      amount: calculateTotal(),
-      dueDate: formData.dueDate,
-      issueDate: new Date().toISOString().split('T')[0],
-      status: 'unpaid',
-      items: formData.items
-    };
+      const newInvoice: Invoice = {
+        id: Date.now().toString(),
+        invoiceNumber: `INV-${Date.now()}`,
+        studentId: formData.studentId,
+        studentName: `${selectedStudent.firstName} ${selectedStudent.lastName}`,
+        amount: calculateTotal(),
+        dueDate: formData.dueDate,
+        issueDate: new Date().toISOString().split('T')[0],
+        status: 'unpaid',
+        items: formData.items
+      };
 
-    onAddInvoice(newInvoice);
+      onAddInvoice(newInvoice);
+    } else {
+      // class mode - formData.studentId holds the class name
+      const className = formData.studentId;
+      if (!className) return;
+      const studentsInClass = students.filter(s => s.class === className);
+
+      for (const s of studentsInClass) {
+        const newInvoice: Invoice = {
+          id: Date.now().toString() + '-' + s.id,
+          invoiceNumber: `INV-${Date.now()}-${s.id}`,
+          studentId: s.id,
+          studentName: `${s.firstName} ${s.lastName}`,
+          amount: calculateTotal(),
+          dueDate: formData.dueDate,
+          issueDate: new Date().toISOString().split('T')[0],
+          status: 'unpaid',
+          items: formData.items
+        };
+
+        onAddInvoice(newInvoice);
+      }
+    }
+
     setShowModal(false);
     setFormData({
       studentId: '',
@@ -200,22 +229,62 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
               <h2 className="text-2xl font-bold text-gray-900 mb-6">Create New Invoice</h2>
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center space-x-4">
+                  <label className="flex items-center space-x-2">
+                    <input type="radio" name="mode" checked={mode === 'student'} onChange={() => setMode('student')} />
+                    <span className="text-sm">Single Student</span>
+                  </label>
+                  <label className="flex items-center space-x-2">
+                    <input type="radio" name="mode" checked={mode === 'class'} onChange={() => setMode('class')} />
+                    <span className="text-sm">By Class</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Student</label>
-                    <select
-                      required
-                      value={formData.studentId}
-                      onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select a student</option>
-                      {students.map((student) => (
-                        <option key={student.id} value={student.id}>
-                          {student.firstName} {student.lastName} - {student.class}
-                        </option>
-                      ))}
-                    </select>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{mode === 'student' ? 'Student' : 'Class'}</label>
+                    {mode === 'student' ? (
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search student by name, admission # or class"
+                          value={studentQuery}
+                          onChange={(e) => { setStudentQuery(e.target.value); setShowSuggestions(true); }}
+                          onFocus={() => setShowSuggestions(true)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        />
+                        {showSuggestions && studentQuery.trim().length > 0 && (
+                          <ul className="absolute z-40 left-0 right-0 bg-white border border-gray-200 rounded shadow max-h-60 overflow-auto mt-1">
+                            {students.filter(s => {
+                              const q = studentQuery.toLowerCase();
+                              const fullName = `${s.firstName} ${s.lastName}`.toLowerCase();
+                              const admission = (s.admissionNumber || '').toLowerCase();
+                              const cls = (s.class || '').toLowerCase();
+                              return fullName.includes(q) || admission.includes(q) || cls.includes(q);
+                            }).slice(0, 20).map(s => (
+                              <li key={s.id} onClick={() => { setFormData({ ...formData, studentId: s.id }); setStudentQuery(`${s.firstName} ${s.lastName} • ${s.class}`); setShowSuggestions(false); }} className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm">
+                                <div className="font-medium">{s.firstName} {s.lastName}</div>
+                                <div className="text-xs text-gray-500">{s.admissionNumber || ''} • {s.class}</div>
+                              </li>
+                            ))}
+                            {students.filter(s => {
+                              const q = studentQuery.toLowerCase();
+                              const fullName = `${s.firstName} ${s.lastName}`.toLowerCase();
+                              const admission = (s.admissionNumber || '').toLowerCase();
+                              const cls = (s.class || '').toLowerCase();
+                              return fullName.includes(q) || admission.includes(q) || cls.includes(q);
+                            }).length === 0 && (
+                              <li className="px-3 py-2 text-sm text-gray-500">No students found</li>
+                            )}
+                          </ul>
+                        )}
+                      </div>
+                    ) : (
+                      <select value={formData.studentId} onChange={(e) => setFormData({ ...formData, studentId: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                        <option value="">Select class</option>
+                        {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
@@ -226,6 +295,18 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
                       onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                    <select
+                      value={formData.currency}
+                      onChange={(e) => setFormData({ ...formData, currency: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="USD">USD ($)</option>
+                      <option value="ZAR">ZAR (R)</option>
+                      <option value="ZiG">ZiG (Z)</option>
+                    </select>
                   </div>
                 </div>
 
@@ -278,7 +359,7 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
                           />
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="font-medium text-gray-900">{formatCurrency(item.total)}</span>
+                          <span className="font-medium text-gray-900">{formatCurrency(item.total, formData.currency)}</span>
                           {formData.items.length > 1 && (
                             <button
                               type="button"
@@ -293,10 +374,10 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
                     ))}
                   </div>
 
-                  <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                     <div className="flex justify-between items-center">
                       <span className="text-lg font-semibold text-gray-900">Total Amount:</span>
-                      <span className="text-2xl font-bold text-blue-600">{formatCurrency(calculateTotal())}</span>
+            <span className="text-2xl font-bold text-blue-600">{formatCurrency(calculateTotal(), formData.currency)}</span>
                     </div>
                   </div>
                 </div>
@@ -352,10 +433,10 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
                   <div className="flex justify-between items-start">
                     <div>
                       <h1 className="text-3xl font-bold text-blue-600 mb-2">INVOICE</h1>
-                      <p className="text-gray-600">Excellence Academy</p>
-                      <p className="text-gray-600">123 Education Street</p>
-                      <p className="text-gray-600">Learning City, LC 12345</p>
-                      <p className="text-gray-600">Phone: (555) 123-4567</p>
+                      <p className="text-gray-600">Lutumba Adventist Secondary School</p>
+                      <p className="text-gray-600">P O BOX 20 ,  Lutumba, Beitbridge</p>
+                      <p className="text-gray-600">Zimbabwe</p>
+                      <p className="text-gray-600">Phone: +263 77 362 7813</p>
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-gray-900">{selectedInvoice.invoiceNumber}</p>
@@ -418,8 +499,8 @@ const Invoices: React.FC<InvoicesProps> = ({ invoices, students, onAddInvoice })
                       <p className="text-sm text-gray-600">Reference: {selectedInvoice.invoiceNumber}</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-600">Thank you for choosing Excellence Academy!</p>
-                      <p className="text-sm text-gray-600">For questions, contact us at billing@excellence.edu</p>
+                      <p className="text-sm text-gray-600">Thank you for choosing Lutumba Adventist Secondary School!</p>
+                      <p className="text-sm text-gray-600">For questions, contact us at lutumba@gmail.com</p>
                     </div>
                   </div>
                 </div>

@@ -43,4 +43,5 @@ export const testConnection = async () => {
   }
 };
 
+export { dbConfig };
 export default pool; 

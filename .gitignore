@@ -10,7 +10,37 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-electron
 *.local
+
+# Environment files
+.env
+config.env
+
+# Database files
+*.db
+*.sqlite
+
+# Build outputs
+build/
+out/
+
+# Electron/NW.js build and installation outputs
+dist-electron/
+dist-installer/
+release/
+app/
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+*.zip
+*.tar.gz
+
+# Electron builder outputs
+electron-builder-output/
+packages/
 
 # Editor directories and files
 .vscode/*
@@ -22,4 +52,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-.env
+
+# OS generated files
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+*.temp

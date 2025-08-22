@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User, Mail, Phone, MapPin, Edit, Trash2, Plus, Search, Filter } from 'lucide-react';
-import { Student } from '../types';
+import { Student, StudentDocument } from '../types';
 import { formatCurrency, formatDate, getStatusColor } from '../utils/calculations';
 import { Payment } from '../types';
 import toast, { Toaster } from 'react-hot-toast';
@@ -24,9 +24,12 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
     email: '',
     phone: '',
     class: '',
+    classSection: '',
     status: 'active',
     totalFees: 0,
     paidAmount: 0,
+    totalFeesCurrency: 'USD',
+    paidAmountCurrency: 'USD',
     address: '',
     parentName: '',
     parentPhone: '',
@@ -39,13 +42,15 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
     documents: []
   });
   const [expandedStudentId, setExpandedStudentId] = useState<string | null>(null);
+  const [showEmailField, setShowEmailField] = useState<boolean>(false);
 
   const filteredStudents = students.filter(student => {
     const matchesSearch = 
-      student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.class.toLowerCase().includes(searchTerm.toLowerCase());
+  (student.firstName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+  (student.lastName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+  (student.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+  (student.class || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+  (`${student.class} ${student.classSection || ''}`.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
     
@@ -54,12 +59,38 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate only required fields: firstName, lastName, and class
+    if (!formData.firstName?.trim()) {
+      toast.error('First name is required!');
+      return;
+    }
+    if (!formData.lastName?.trim()) {
+      toast.error('Last name is required!');
+      return;
+    }
+    if (!formData.class?.trim()) {
+      toast.error('Form/Class is required!');
+      return;
+    }
+    if (formData.class && !formData.classSection) {
+      toast.error('Class Section is required!');
+      return;
+    }
+    
     try {
+      // If email field is hidden, ensure email is empty
+      const normalizedForm = { ...formData } as any;
+      if (!showEmailField) {
+        normalizedForm.email = '';
+      }
+
       const studentData: Student = {
-        ...formData,
+        ...normalizedForm,
         id: editingStudent?.id || Date.now().toString(),
+        class: `${formData.class} ${formData.classSection}`,
         enrollmentDate: editingStudent?.enrollmentDate || new Date().toISOString().split('T')[0],
-        outstandingBalance: (formData.totalFees || 0) - (formData.paidAmount || 0)
+        outstandingBalance: (normalizedForm.totalFees || 0) - (normalizedForm.paidAmount || 0)
       } as Student;
 
       if (editingStudent) {
@@ -70,16 +101,19 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
         toast.success('New student added successfully!');
       }
       
-      // Only reset the form and close modal after successful save
+      // Reset the form and close modal after successful save
       setFormData({
         firstName: '',
         lastName: '',
         email: '',
         phone: '',
         class: '',
+        classSection: '',
         status: 'active',
         totalFees: 0,
         paidAmount: 0,
+        totalFeesCurrency: 'USD',
+        paidAmountCurrency: 'USD',
         address: '',
         parentName: '',
         parentPhone: '',
@@ -97,31 +131,20 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
       console.error('Failed to save student:', error);
       toast.error('Failed to save student. Please try again.');
     }
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      phone: '',
-      class: '',
-      status: 'active',
-      totalFees: 0,
-      paidAmount: 0,
-      address: '',
-      parentName: '',
-      parentPhone: '',
-      dateOfBirth: '',
-      gender: 'male',
-      admissionNumber: '',
-      dateOfAdmission: '',
-      academicYear: '',
-      medicalNotes: '',
-      documents: []
-    });
   };
 
   const handleEdit = (student: Student) => {
+    const classParts = student.class.split(' ');
+    const studentFormState = {
+      ...student,
+      class: classParts[0] ? `${classParts[0]} ${classParts[1]}` : '',
+      classSection: classParts[2] || '',
+    };
+
     setEditingStudent(student);
-    setFormData(student);
+    setFormData(studentFormState);
+    // show email input if the student already has an email
+    setShowEmailField(!!student.email);
     setShowModal(true);
   };
 
@@ -133,9 +156,12 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
       email: '',
       phone: '',
       class: '',
+      classSection: '',
       status: 'active',
       totalFees: 0,
       paidAmount: 0,
+      totalFeesCurrency: 'USD',
+      paidAmountCurrency: 'USD',
       address: '',
       parentName: '',
       parentPhone: '',
@@ -147,7 +173,9 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
       medicalNotes: '',
       documents: []
     });
-    setShowModal(true);
+  // default: don't show email input for new students
+  setShowEmailField(false);
+  setShowModal(true);
   };
 
   return (
@@ -191,7 +219,6 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
               <option value="suspended">Suspended</option>
-              <option value="graduated">Graduated</option>
             </select>
           </div>
         </div>
@@ -200,15 +227,15 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
       {/* Students Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
         {filteredStudents.map((student) => (
-          <div key={student.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
+          <div key={student.id} className="bg-white rounded-lg shadow-md p-6 hover:shadow-xl hover:scale-105 hover:bg-blue-50 transition-all duration-300 transform cursor-pointer group">
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center space-x-3">
-                <div className="bg-blue-100 p-2 rounded-full">
-                  <User className="h-6 w-6 text-blue-600" />
+                <div className="bg-blue-100 p-2 rounded-full group-hover:bg-blue-200 group-hover:scale-110 transition-all duration-300">
+                  <User className="h-6 w-6 text-blue-600 group-hover:text-blue-700" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{student.firstName} {student.lastName}</h3>
-                  <p className="text-sm text-gray-600">{student.class}</p>
+                  <h3 className="font-semibold text-gray-900 group-hover:text-blue-700 transition-colors duration-300">{student.firstName} {student.lastName}</h3>
+                  <p className="text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">{student.class}</p>
                 </div>
               </div>
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(student.status)}`}>
@@ -217,51 +244,57 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
             </div>
 
             <div className="space-y-2 mb-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Mail className="h-4 w-4" />
-                <span>{student.email}</span>
-              </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <Phone className="h-4 w-4" />
-                <span>{student.phone}</span>
-              </div>
-              <div className="flex items-center space-x-2 text-sm text-gray-600">
-                <MapPin className="h-4 w-4" />
-                <span className="truncate">{student.address}</span>
-              </div>
+              {student.email && (
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
+                  <Mail className="h-4 w-4 group-hover:text-blue-500" />
+                  <span>{student.email}</span>
+                </div>
+              )}
+              {student.phone && (
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
+                  <Phone className="h-4 w-4 group-hover:text-blue-500" />
+                  <span>{student.phone}</span>
+                </div>
+              )}
+              {student.address && (
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
+                  <MapPin className="h-4 w-4 group-hover:text-blue-500" />
+                  <span className="truncate">{student.address}</span>
+                </div>
+              )}
               {/* New fields */}
               {student.dateOfBirth && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
                   <span className="font-medium">DOB:</span>
                   <span>{student.dateOfBirth}</span>
                 </div>
               )}
               {student.gender && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
                   <span className="font-medium">Gender:</span>
                   <span>{student.gender}</span>
                 </div>
               )}
               {student.admissionNumber && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
                   <span className="font-medium">Admission #:</span>
                   <span>{student.admissionNumber}</span>
                 </div>
               )}
               {student.dateOfAdmission && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
                   <span className="font-medium">Admission Date:</span>
                   <span>{student.dateOfAdmission}</span>
                 </div>
               )}
               {student.academicYear && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
                   <span className="font-medium">Academic Year:</span>
                   <span>{student.academicYear}</span>
                 </div>
               )}
               {student.medicalNotes && (
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-sm text-gray-600 group-hover:text-blue-600 transition-colors duration-300">
                   <span className="font-medium">Medical Notes:</span>
                   <span>{student.medicalNotes}</span>
                 </div>
@@ -280,36 +313,18 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
               )}
             </div>
 
-            <div className="bg-gray-50 rounded-lg p-3 mb-4">
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                  <p className="text-gray-600">Total Fees</p>
-                  <p className="font-semibold">{formatCurrency(student.totalFees)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600">Paid Amount</p>
-                  <p className="font-semibold text-green-600">{formatCurrency(student.paidAmount)}</p>
-                </div>
-              </div>
-              <div className="mt-2">
-                <p className="text-gray-600 text-sm">Outstanding Balance</p>
-                <p className={`font-semibold ${student.outstandingBalance > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {formatCurrency(student.outstandingBalance)}
-                </p>
-              </div>
-            </div>
 
             <div className="flex space-x-2">
               <button
                 onClick={() => handleEdit(student)}
-                className="flex-1 bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-lg flex items-center justify-center space-x-1 transition-colors"
+                className="flex-1 bg-blue-100 hover:bg-blue-200 hover:scale-105 text-blue-700 hover:text-blue-800 px-3 py-2 rounded-lg flex items-center justify-center space-x-1 transition-all duration-300 transform hover:shadow-md"
               >
                 <Edit className="h-4 w-4" />
                 <span>Edit</span>
               </button>
               <button
                 onClick={() => onDeleteStudent(student.id)}
-                className="flex-1 bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg flex items-center justify-center space-x-1 transition-colors"
+                className="flex-1 bg-red-100 hover:bg-red-200 hover:scale-105 text-red-700 hover:text-red-800 px-3 py-2 rounded-lg flex items-center justify-center space-x-1 transition-all duration-300 transform hover:shadow-md"
               >
                 <Trash2 className="h-4 w-4" />
                 <span>Delete</span>
@@ -331,45 +346,45 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
                     <input
                       type="text"
-                      required
                       value={formData.firstName || ''}
                       onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
                     <input
                       type="text"
-                      required
                       value={formData.lastName || ''}
                       onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      required
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email (optional)</label>
                     <input
                       type="email"
-                      required
                       value={formData.email || ''}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      placeholder="Enter email address (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Phone (optional)</label>
                     <input
                       type="tel"
-                      required
                       value={formData.phone || ''}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="Enter phone number (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -377,15 +392,37 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Class</label>
-                    <input
-                      type="text"
-                      required
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Form/Class *</label>
+                    <select
                       value={formData.class || ''}
-                      onChange={(e) => setFormData({ ...formData, class: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, class: e.target.value, classSection: '' })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
+                      required
+                    >
+                      <option value="">Select form/class</option>
+                      <option value="Form 1">Form 1</option>
+                      <option value="Form 2">Form 2</option>
+                      <option value="Form 3">Form 3</option>
+                      <option value="Form 4">Form 4</option>
+                      <option value="Form 5">Form 5</option>
+                      <option value="Form 6">Form 6</option>
+                    </select>
                   </div>
+                  {formData.class && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Class Section *</label>
+                      <select
+                        value={formData.classSection || ''}
+                        onChange={(e) => setFormData({ ...formData, classSection: e.target.value as 'A1' | 'A2' })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        required
+                      >
+                        <option value="">Select section</option>
+                        <option value="A1">A1</option>
+                        <option value="A2">A2</option>
+                      </select>
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
                     <select
@@ -396,16 +433,16 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
                       <option value="active">Active</option>
                       <option value="inactive">Inactive</option>
                       <option value="suspended">Suspended</option>
-                      <option value="graduated">Graduated</option>
                     </select>
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Address (optional)</label>
                   <textarea
                     value={formData.address || ''}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Enter address (optional)"
                     rows={2}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
@@ -413,20 +450,22 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent Name</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent Name (optional)</label>
                     <input
                       type="text"
                       value={formData.parentName || ''}
                       onChange={(e) => setFormData({ ...formData, parentName: e.target.value })}
+                      placeholder="Enter parent name (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent Phone</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Parent Phone (optional)</label>
                     <input
                       type="tel"
                       value={formData.parentPhone || ''}
                       onChange={(e) => setFormData({ ...formData, parentPhone: e.target.value })}
+                      placeholder="Enter parent phone (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -434,33 +473,7 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Total Fees</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.totalFees || 0}
-                      onChange={(e) => setFormData({ ...formData, totalFees: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Paid Amount</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={formData.paidAmount || 0}
-                      onChange={(e) => setFormData({ ...formData, paidAmount: parseFloat(e.target.value) || 0 })}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Add new fields to the form */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth (optional)</label>
                     <input
                       type="date"
                       value={formData.dateOfBirth || ''}
@@ -483,16 +496,17 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Admission Number</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Admission Number (optional)</label>
                     <input
                       type="text"
                       value={formData.admissionNumber || ''}
                       onChange={e => setFormData({ ...formData, admissionNumber: e.target.value })}
+                      placeholder="Enter admission number (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Admission</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Date of Admission (optional)</label>
                     <input
                       type="date"
                       value={formData.dateOfAdmission || ''}
@@ -503,11 +517,12 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Academic Year (optional)</label>
                     <input
                       type="text"
                       value={formData.academicYear || ''}
                       onChange={e => setFormData({ ...formData, academicYear: e.target.value })}
+                      placeholder="e.g., 2024-2025 (optional)"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
@@ -523,16 +538,16 @@ const Students: React.FC<StudentsProps> = ({ students, onUpdateStudent, onDelete
                 </div>
                 {/* Document upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Upload Documents</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Upload Documents (optional)</label>
                   <input
                     type="file"
                     multiple
                     onChange={e => {
                       const files = e.target.files;
                       if (!files) return;
-                      const docs = Array.from(files).map(file => ({
+                      const docs: StudentDocument[] = Array.from(files).map(file => ({
                         id: Date.now().toString() + Math.random(),
-                        type: 'other',
+                        type: 'other' as const,
                         name: file.name,
                         url: URL.createObjectURL(file)
                       }));

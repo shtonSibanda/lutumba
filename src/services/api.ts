@@ -86,7 +86,9 @@ const transformPayment = (dbPayment: any) => ({
   paymentDate: dbPayment.payment_date,
   description: dbPayment.description,
   invoiceNumber: dbPayment.invoice_number,
-  status: dbPayment.status
+  status: dbPayment.status,
+  accountId: dbPayment.account_id,
+  allocations: dbPayment.allocations ? JSON.parse(dbPayment.allocations) : null
 });
 
 // Transform frontend payment to database format
@@ -99,7 +101,9 @@ const transformPaymentForDB = (payment: any) => ({
   paymentDate: payment.paymentDate,
   description: payment.description,
   invoiceNumber: payment.invoiceNumber,
-  status: payment.status
+  status: payment.status,
+  accountId: payment.accountId,
+  allocations: payment.allocations ? JSON.stringify(payment.allocations) : null
 });
 
 // Students API
@@ -151,7 +155,22 @@ export const paymentsApi = {
       method: 'POST',
       body: JSON.stringify(dbData),
     });
-    return transformPayment({ id: result.paymentId, ...dbData });
+
+    // Return a payment object with camelCase fields so the frontend has the paymentDate immediately
+    return {
+      id: String(result.paymentId),
+      studentId: dbData.studentId,
+      studentName: dbData.studentName,
+      amount: dbData.amount,
+      currency: dbData.currency,
+      paymentMethod: dbData.paymentMethod,
+      paymentDate: dbData.paymentDate,
+      description: dbData.description,
+      invoiceNumber: dbData.invoiceNumber,
+      status: dbData.status || 'completed',
+      accountId: dbData.accountId,
+      allocations: dbData.allocations ? JSON.parse(dbData.allocations) : null
+    } as any;
   },
   update: async (id: string, data: any) => {
     const dbData = transformPaymentForDB(data);
@@ -159,7 +178,21 @@ export const paymentsApi = {
       method: 'PUT',
       body: JSON.stringify(dbData),
     });
-    return transformPayment({ id, ...dbData });
+
+    return {
+      id,
+      studentId: dbData.studentId,
+      studentName: dbData.studentName,
+      amount: dbData.amount,
+      currency: dbData.currency,
+      paymentMethod: dbData.paymentMethod,
+      paymentDate: dbData.paymentDate,
+      description: dbData.description,
+      invoiceNumber: dbData.invoiceNumber,
+      status: dbData.status,
+      accountId: dbData.accountId,
+      allocations: dbData.allocations ? JSON.parse(dbData.allocations) : null
+    } as any;
   },
   delete: async (id: string) => {
     await apiRequest(`/payments/${id}`, {
@@ -172,11 +205,103 @@ export const paymentsApi = {
   },
 };
 
+// Transform database expense to frontend format
+const transformExpense = (dbExpense: any) => ({
+  id: dbExpense.id.toString(),
+  description: dbExpense.description,
+  amount: parseFloat(dbExpense.amount),
+  currency: dbExpense.currency,
+  category: dbExpense.category,
+  date: dbExpense.date,
+  paymentMethod: dbExpense.payment_method,
+  createdAt: dbExpense.created_at,
+  updatedAt: dbExpense.updated_at,
+  accountId: dbExpense.account_id,
+  allocationCategory: dbExpense.allocation_category
+});
+
+// Transform frontend expense to database format
+const transformExpenseForDB = (expense: any) => ({
+  description: expense.description,
+  amount: expense.amount,
+  currency: expense.currency,
+  category: expense.category,
+  date: expense.date,
+  paymentMethod: expense.paymentMethod,
+  accountId: expense.accountId,
+  allocationCategory: expense.allocationCategory
+});
+
+// Expenses API
+export const expensesApi = {
+  getAll: async () => {
+    try {
+      const expenses = await apiRequest('/expenses');
+      return expenses.map(transformExpense);
+    } catch (error) {
+      console.error('Failed to fetch expenses:', error);
+      return [];
+    }
+  },
+  getById: async (id: string) => {
+    const expense = await apiRequest(`/expenses/${id}`);
+    return transformExpense(expense);
+  },
+  create: async (data: any) => {
+    const dbData = transformExpenseForDB(data);
+    const result = await apiRequest('/expenses', {
+      method: 'POST',
+      body: JSON.stringify(dbData),
+    });
+    
+    return {
+      id: String(result.expenseId),
+      description: dbData.description,
+      amount: dbData.amount,
+      currency: dbData.currency,
+      category: dbData.category,
+      date: dbData.date,
+      paymentMethod: dbData.paymentMethod,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      accountId: dbData.accountId,
+      allocationCategory: dbData.allocationCategory
+    } as any;
+  },
+  update: async (id: string, data: any) => {
+    const dbData = transformExpenseForDB(data);
+    await apiRequest(`/expenses/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(dbData),
+    });
+    
+    return {
+      id,
+      description: dbData.description,
+      amount: dbData.amount,
+      currency: dbData.currency,
+      category: dbData.category,
+      date: dbData.date,
+      paymentMethod: dbData.paymentMethod,
+      createdAt: data.createdAt,
+      updatedAt: new Date().toISOString(),
+      accountId: dbData.accountId,
+      allocationCategory: dbData.allocationCategory
+    } as any;
+  },
+  delete: async (id: string) => {
+    await apiRequest(`/expenses/${id}`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 // Health check
 export const healthCheck = () => apiRequest('/health');
 
 export default {
   students: studentsApi,
   payments: paymentsApi,
+  expenses: expensesApi,
   health: healthCheck,
-}; 
+};

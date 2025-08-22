@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Create Test Payment</title>
+</head>
+<body>
+    <h1>Create Test Payment</h1>
+    <button onclick="createPayment()">Create Payment with Account 406</button>
+    <div id="result"></div>
+
+    <script>
+        async function createPayment() {
+            const payment = {
+                studentId: '29',
+                studentName: 'Test Student',
+                amount: 2000,
+                currency: 'ZAR',
+                paymentMethod: 'cash',
+                paymentDate: '2025-08-21',
+                description: 'Test payment for account 406',
+                invoiceNumber: 'TEST-406-001',
+                status: 'completed',
+                accountId: '406'
+            };
+
+            try {
+                const response = await fetch('http://localhost:5000/api/payments', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payment),
+                });
+
+                const result = await response.json();
+                document.getElementById('result').innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+                
+                // Fetch all payments to see the updated list
+                const paymentsResponse = await fetch('http://localhost:5000/api/payments');
+                const payments = await paymentsResponse.json();
+                
+                document.getElementById('result').innerHTML += '<h3>All Payments:</h3><pre>' + JSON.stringify(payments, null, 2) + '</pre>';
+                
+            } catch (error) {
+                document.getElementById('result').innerHTML = 'Error: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

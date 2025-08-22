@@ -1,58 +1,71 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Users, CreditCard, FileText, GraduationCap } from 'lucide-react';
+import { BarChart3, Users, CreditCard, FileText, GraduationCap, TrendingDown } from 'lucide-react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { SettingsProvider, useSettings } from './contexts/SettingsContext';
 import Login from './components/Login';
 import UserProfile from './components/UserProfile';
 import ProtectedRoute from './components/ProtectedRoute';
-import Dashboard from './components/Dashboard';
+import SchoolLogo from './components/SchoolLogo';
+import DashboardSelection from './components/DashboardSelection';
+import USDDashboard from './components/USDDashboard';
+import ZARDashboard from './components/ZARDashboard';
+import ZiGDashboard from './components/ZiGDashboard';
 import Students from './components/Students';
-import Payments from './components/Payments';
+import PaymentAccountSelection from './components/PaymentAccountSelection';
+import PaymentAccountPanel from './components/PaymentAccountPanel';
+import Expenses from './components/Expenses';
 import Invoices from './components/Invoices';
 import FeeStructures from './components/FeeStructures';
 import Defaulters from './components/Defaulters';
 import Attendance from './components/Attendance';
 import Academics from './components/Academics';
-import StaffAttendance from './components/StaffAttendance';
 import Reports from './components/Reports';
 import Settings from './components/Settings';
-import { Student, Payment, Invoice } from './types';
-import { sampleStudents, samplePayments, sampleInvoices, sampleAttendanceRecords, sampleExamResults, sampleStaffAttendanceRecords, sampleSystemSettings, sampleStaff } from './utils/sampleData';
-import { calculateFinancialSummary } from './utils/calculations';
-import { studentsApi, paymentsApi } from './services/api';
+import { Student, Payment, Invoice, Expense, Currency, Staff, StaffAttendanceRecord } from './types';
+import { PaymentAccount } from './components/PaymentAccountSelection';
+import { sampleStudents, samplePayments, sampleInvoices, sampleAttendanceRecords, sampleExamResults, sampleStaffAttendanceRecords, sampleSystemSettings, sampleStaff, sampleExpenses } from './utils/sampleData';
+import { calculateFinancialSummary, calculateExpenseSummary } from './utils/calculations';
+import { studentsApi, paymentsApi, expensesApi } from './services/api';
 
-type ActiveTab = 'dashboard' | 'students' | 'payments' | 'invoices' | 'feeStructures' | 'defaulters' | 'attendance' | 'academics' | 'staff' | 'staffAttendance' | 'reports' | 'settings';
+type ActiveTab = 'dashboard' | 'students' | 'payments' | 'expenses' | 'invoices' | 'feeStructures' | 'defaulters' | 'attendance' | 'academics' | 'staff' | 'staffAttendance' | 'reports' | 'settings';
+type DashboardView = 'selection' | 'USD' | 'ZAR' | 'ZiG';
+type PaymentView = 'selection' | 'account';
 
 const AppContent: React.FC = () => {
   const { user, isAuthenticated } = useAuth();
+  const { settings, updateSettings } = useSettings();
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [students, setStudents] = useState<Student[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>(sampleInvoices);
-  const [attendanceRecords, setAttendanceRecords] = useState(sampleAttendanceRecords);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(sampleAttendanceRecords);
   const [examResults, setExamResults] = useState(sampleExamResults);
-  const [staffAttendanceRecords, setStaffAttendanceRecords] = useState(sampleStaffAttendanceRecords);
+  const [staffAttendanceRecords, setStaffAttendanceRecords] = useState<StaffAttendanceRecord[]>(sampleStaffAttendanceRecords);
   const [systemSettings, setSystemSettings] = useState(sampleSystemSettings);
-  const [staff, setStaff] = useState(sampleStaff);
-  const [loading, setLoading] = useState(true);
+  const [staff] = useState<Staff[]>(sampleStaff);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [dashboardView, setDashboardView] = useState<DashboardView>('selection');
+  const [paymentView, setPaymentView] = useState<PaymentView>('selection');
+  const [selectedPaymentAccount, setSelectedPaymentAccount] = useState<PaymentAccount | null>(null);
 
   // Load data from database on component mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        setLoading(true);
-        const [studentsData, paymentsData] = await Promise.all([
+        const [studentsData, paymentsData, expensesData] = await Promise.all([
           studentsApi.getAll(),
-          paymentsApi.getAll()
+          paymentsApi.getAll(),
+          expensesApi.getAll()
         ]);
         setStudents(studentsData);
         setPayments(paymentsData);
+        setExpenses(expensesData);
       } catch (error) {
         console.error('Failed to load data:', error);
         // Fallback to sample data if API fails
         setStudents(sampleStudents);
         setPayments(samplePayments);
-      } finally {
-        setLoading(false);
+        setExpenses(sampleExpenses);
       }
     };
 
@@ -61,7 +74,8 @@ const AppContent: React.FC = () => {
     }
   }, [isAuthenticated]);
 
-  const financialSummary = calculateFinancialSummary(students, payments);
+  const financialSummary = calculateFinancialSummary(students, payments, expenses);
+  const expenseSummary = calculateExpenseSummary(expenses);
 
   const handleUpdateStudent = async (updatedStudent: Student) => {
     try {
@@ -143,18 +157,109 @@ const AppContent: React.FC = () => {
     });
   };
 
-  const handleAddResult = (result) => {
+  const handleAddResult = (result: any) => {
     setExamResults(prev => [...prev, result]);
   };
 
-  const handleUpdateSettings = (settings) => setSystemSettings(settings);
+  const handleUpdateSettings = (newSettings: any) => {
+    setSystemSettings(newSettings);
+    updateSettings(newSettings);
+  };
 
-  const handleMarkStaffAttendance = (newRecords) => {
+  const handleMarkStaffAttendance = (newRecords: any) => {
     setStaffAttendanceRecords(prev => {
-      const ids = newRecords.map(r => r.staffId + r.date);
-      const filtered = prev.filter(r => !ids.includes(r.staffId + r.date));
+      const ids = newRecords.map((r: any) => r.staffId + r.date);
+      const filtered = prev.filter((r: any) => !ids.includes(r.staffId + r.date));
       return [...filtered, ...newRecords];
     });
+  };
+
+  const handleAddExpense = async (newExpense: Expense) => {
+    try {
+      const createdExpense = await expensesApi.create(newExpense);
+      setExpenses([...expenses, createdExpense]);
+    } catch (error) {
+      console.error('Failed to add expense:', error);
+      alert('Failed to add expense. Please try again.');
+    }
+  };
+
+  const handleUpdateExpense = async (updatedExpense: Expense) => {
+    try {
+      await expensesApi.update(updatedExpense.id, updatedExpense);
+      setExpenses(expenses.map(e => e.id === updatedExpense.id ? updatedExpense : e));
+    } catch (error) {
+      console.error('Failed to update expense:', error);
+      alert('Failed to update expense. Please try again.');
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    try {
+      await expensesApi.delete(expenseId);
+      setExpenses(expenses.filter(e => e.id !== expenseId));
+    } catch (error) {
+      console.error('Failed to delete expense:', error);
+      alert('Failed to delete expense. Please try again.');
+    }
+  };
+
+  // Handle deduction from allocation when expense is added
+  const handleDeductFromAllocation = async (accountId: string, allocationCategory: string, amount: number, currency: Currency) => {
+    // Use the first available student ID to satisfy the foreign key constraint
+    const firstStudent = students.length > 0 ? students[0] : null;
+    if (!firstStudent) {
+      alert('No students found. Cannot create expense deduction.');
+      return;
+    }
+
+    // Create a deduction record by adding a negative payment to represent the expense deduction
+    const deductionPayment: Payment = {
+      id: `deduction-${Date.now()}`,
+      studentId: firstStudent.id,
+      studentName: 'System Deduction',
+      amount: -amount, // Negative amount to represent deduction
+      currency: currency,
+      paymentMethod: 'bank_transfer',
+      paymentDate: new Date().toISOString().split('T')[0],
+      description: `Expense deduction from ${allocationCategory}`,
+      invoiceNumber: `DED-${Date.now()}`,
+      status: 'completed',
+      accountId: accountId,
+      allocations: [{
+        category: allocationCategory,
+        percentage: 100,
+        amount: amount
+      }]
+    };
+
+    // Add the deduction to payments to reflect the reduced balance
+    try {
+      const createdDeduction = await paymentsApi.create(deductionPayment);
+      setPayments(prevPayments => [...prevPayments, createdDeduction]);
+      console.log(`Deducted ${amount} ${currency} from ${allocationCategory} in account ${accountId}`);
+    } catch (error) {
+      console.error('Failed to save deduction:', error);
+      alert('Failed to record expense deduction. Please try again.');
+    }
+  };
+
+  const handleSelectCurrency = (currency: Currency) => {
+    setDashboardView(currency);
+  };
+
+  const handleBackToDashboard = () => {
+    setDashboardView('selection');
+  };
+
+  const handleSelectPaymentAccount = (account: PaymentAccount) => {
+    setSelectedPaymentAccount(account);
+    setPaymentView('account');
+  };
+
+  const handleBackToPaymentSelection = () => {
+    setPaymentView('selection');
+    setSelectedPaymentAccount(null);
   };
 
   // Define navigation items with role-based access
@@ -175,6 +280,12 @@ const AppContent: React.FC = () => {
       id: 'payments', 
       label: 'Payments', 
       icon: CreditCard,
+      allowedRoles: ['admin', 'finance'] as const
+    },
+    { 
+      id: 'expenses', 
+      label: 'Expenses', 
+      icon: TrendingDown,
       allowedRoles: ['admin', 'finance'] as const
     },
     { 
@@ -237,9 +348,7 @@ const AppContent: React.FC = () => {
       <div className="w-64 bg-white shadow-lg">
         <div className="p-6">
           <div className="flex items-center space-x-3">
-            <div className="bg-blue-600 p-2 rounded-lg">
-              <GraduationCap className="h-8 w-8 text-white" />
-            </div>
+            <SchoolLogo size="lg" />
             <div>
               <h1 className="text-xl font-bold text-gray-900">Lutumba Adventist</h1>
               <p className="text-sm text-gray-600">Secondary School</p>
@@ -277,7 +386,7 @@ const AppContent: React.FC = () => {
               <h2 className="text-2xl font-bold text-gray-900">
                 {navItems.find(item => item.id === activeTab)?.label}
               </h2>
-              <p className="text-gray-600">Educating for Eternity, Welcome Back</p>
+              <p className="text-gray-600">{settings.contactEmail ? `Contact: ${settings.contactEmail}` : 'Educating for Eternity, Welcome Back'}</p>
             </div>
             <UserProfile user={user} />
           </div>
@@ -287,7 +396,36 @@ const AppContent: React.FC = () => {
         <div className="flex-1 p-8">
           {activeTab === 'dashboard' && (
             <ProtectedRoute allowedRoles={['admin', 'finance', 'teacher', 'parent']} user={user}>
-              <Dashboard financialSummary={financialSummary} />
+              {dashboardView === 'selection' && (
+                <DashboardSelection onSelectCurrency={handleSelectCurrency} />
+              )}
+              {dashboardView === 'USD' && (
+                <USDDashboard 
+                  financialSummary={financialSummary} 
+                  students={students} 
+                  payments={payments} 
+                  expenses={expenses}
+                  onBack={handleBackToDashboard}
+                />
+              )}
+              {dashboardView === 'ZAR' && (
+                <ZARDashboard 
+                  financialSummary={financialSummary} 
+                  students={students} 
+                  payments={payments} 
+                  expenses={expenses}
+                  onBack={handleBackToDashboard}
+                />
+              )}
+              {dashboardView === 'ZiG' && (
+                <ZiGDashboard 
+                  financialSummary={financialSummary} 
+                  students={students} 
+                  payments={payments} 
+                  expenses={expenses}
+                  onBack={handleBackToDashboard}
+                />
+              )}
             </ProtectedRoute>
           )}
           {activeTab === 'students' && (
@@ -303,11 +441,32 @@ const AppContent: React.FC = () => {
           )}
           {activeTab === 'payments' && (
             <ProtectedRoute allowedRoles={['admin', 'finance']} user={user}>
-              <Payments
+              {paymentView === 'selection' && (
+                <PaymentAccountSelection onSelectAccount={handleSelectPaymentAccount} />
+              )}
+              {paymentView === 'account' && selectedPaymentAccount && (
+                <PaymentAccountPanel
+                  account={selectedPaymentAccount}
+                  payments={payments}
+                  students={students}
+                  expenses={expenses}
+                  onAddPayment={handleAddPayment}
+                  onUpdateStudentBalance={handleUpdateStudentBalance}
+                  onBack={handleBackToPaymentSelection}
+                />
+              )}
+            </ProtectedRoute>
+          )}
+          {activeTab === 'expenses' && (
+            <ProtectedRoute allowedRoles={['admin', 'finance']} user={user}>
+              <Expenses
+                expenses={expenses}
                 payments={payments}
-                students={students}
-                onAddPayment={handleAddPayment}
-                onUpdateStudentBalance={handleUpdateStudentBalance}
+                expenseSummary={expenseSummary}
+                onAddExpense={handleAddExpense}
+                onUpdateExpense={handleUpdateExpense}
+                onDeleteExpense={handleDeleteExpense}
+                onDeductFromAllocation={handleDeductFromAllocation}
               />
             </ProtectedRoute>
           )}
@@ -327,7 +486,7 @@ const AppContent: React.FC = () => {
           )}
           {activeTab === 'defaulters' && (
             <ProtectedRoute allowedRoles={['admin', 'finance']} user={user}>
-              <Defaulters students={students} />
+              <Defaulters students={students} payments={payments} />
             </ProtectedRoute>
           )}
           {activeTab === 'attendance' && (
@@ -385,7 +544,9 @@ const AppContent: React.FC = () => {
 function App() {
   return (
     <AuthProvider>
-      <AppContent />
+      <SettingsProvider initialSettings={sampleSystemSettings}>
+        <AppContent />
+      </SettingsProvider>
     </AuthProvider>
   );
 }

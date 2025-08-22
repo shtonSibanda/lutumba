@@ -72,6 +72,15 @@ router.post('/', async (req, res) => {
       admissionNumber, dateOfAdmission, academicYear, medicalNotes, documents
     } = req.body;
 
+    // Convert ISO date strings to MySQL date format (YYYY-MM-DD)
+    const formatDate = (dateString) => {
+      if (!dateString) return null;
+      return new Date(dateString).toISOString().split('T')[0];
+    };
+
+    // Set default enrollment date if not provided
+    const defaultEnrollmentDate = enrollmentDate && enrollmentDate.trim() !== '' ? formatDate(enrollmentDate) : new Date().toISOString().split('T')[0];
+
     const [result] = await pool.query(`
       INSERT INTO students (
         first_name, last_name, email, phone, class, status, enrollment_date,
@@ -80,11 +89,13 @@ router.post('/', async (req, res) => {
         academic_year, medical_notes
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      firstName, lastName, email, phone, studentClass, status, enrollmentDate,
-      totalFees || 0, paidAmount || 0, outstandingBalance || 0, address,
-      parentName, parentPhone, dateOfBirth, gender, admissionNumber,
-      dateOfAdmission, academicYear, medicalNotes
-    ]);
+      firstName || null, lastName || null, email || null, phone || null, 
+      studentClass || null, status || 'active', defaultEnrollmentDate,
+      totalFees || 0, paidAmount || 0, outstandingBalance || 0, address || null,
+      parentName || null, parentPhone || null, formatDate(dateOfBirth), 
+      gender || null, admissionNumber || null, formatDate(dateOfAdmission), 
+      academicYear || null, medicalNotes || null
+    ].map(val => val === '' ? null : val));
 
     const studentId = result.insertId;
 
@@ -118,6 +129,12 @@ router.put('/:id', async (req, res) => {
       admissionNumber, dateOfAdmission, academicYear, medicalNotes, documents
     } = req.body;
 
+    // Convert ISO date strings to MySQL date format (YYYY-MM-DD)
+    const formatDate = (dateString) => {
+      if (!dateString) return null;
+      return new Date(dateString).toISOString().split('T')[0];
+    };
+
     await pool.query(`
       UPDATE students SET
         first_name = ?, last_name = ?, email = ?, phone = ?, class = ?,
@@ -127,10 +144,10 @@ router.put('/:id', async (req, res) => {
         academic_year = ?, medical_notes = ?
       WHERE id = ?
     `, [
-      firstName, lastName, email, phone, studentClass, status, enrollmentDate,
+      firstName, lastName, email, phone, studentClass, status, formatDate(enrollmentDate),
       totalFees || 0, paidAmount || 0, outstandingBalance || 0, address,
-      parentName, parentPhone, dateOfBirth, gender, admissionNumber,
-      dateOfAdmission, academicYear, medicalNotes, req.params.id
+      parentName, parentPhone, formatDate(dateOfBirth), gender, admissionNumber,
+      formatDate(dateOfAdmission), academicYear, medicalNotes, req.params.id
     ]);
 
     // Update documents

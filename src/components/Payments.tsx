@@ -24,6 +24,8 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
     description: '',
     paymentDate: new Date().toISOString().split('T')[0]
   });
+  const [studentQuery, setStudentQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   const filteredPayments = payments.filter(payment => {
     const matchesSearch = 
@@ -93,15 +95,24 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
   const getSelectedStudent = (studentId: string) => {
     return students.find(s => s.id === studentId);
   };
-  const totalPayments = payments.reduce((sum, payment) => 
-    payment.status === 'completed' ? sum + payment.amount : sum, 0
-  );
 
-  const monthlyPayments = payments.filter(payment => {
-    const paymentDate = new Date(payment.paymentDate);
-    const currentMonth = new Date().getMonth();
-    return paymentDate.getMonth() === currentMonth;
-  }).reduce((sum, payment) => sum + payment.amount, 0);
+  const totalPaymentsByCurrency = payments
+    .filter(payment => payment.status === 'completed')
+    .reduce((acc, payment) => {
+      acc[payment.currency] = (acc[payment.currency] || 0) + payment.amount;
+      return acc;
+    }, {} as Record<string, number>);
+
+  const monthlyPaymentsByCurrency = payments
+    .filter(payment => {
+      const paymentDate = new Date(payment.paymentDate);
+      const currentMonth = new Date().getMonth();
+      return paymentDate.getMonth() === currentMonth;
+    })
+    .reduce((acc, payment) => {
+      acc[payment.currency] = (acc[payment.currency] || 0) + payment.amount;
+      return acc;
+    }, {} as Record<string, number>);
 
   return (
     <>
@@ -116,33 +127,53 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
             className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors"
           >
             <Plus className="h-5 w-5" />
-            <span>Make Payment</span>
+            <span>Pay</span>
           </button>
         </div>
 
         {/* Payment Summary */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-green-500">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex-1">
                 <p className="text-sm font-medium text-gray-600">Total Payments</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalPayments)}</p>
               </div>
               <div className="bg-green-100 p-3 rounded-full">
                 <DollarSign className="h-6 w-6 text-green-600" />
               </div>
             </div>
+            <div className="space-y-1">
+              {Object.entries(totalPaymentsByCurrency).map(([currency, amount]) => (
+                <div key={currency} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">{currency}:</span>
+                  <span className="text-lg font-bold text-gray-900">{formatCurrency(amount, currency as Currency)}</span>
+                </div>
+              ))}
+              {Object.keys(totalPaymentsByCurrency).length === 0 && (
+                <p className="text-lg font-bold text-gray-900">{formatCurrency(0)}</p>
+              )}
+            </div>
           </div>
 
           <div className="bg-white rounded-lg shadow-md p-6 border-l-4 border-blue-500">
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex-1">
                 <p className="text-sm font-medium text-gray-600">This Month</p>
-                <p className="text-2xl font-bold text-gray-900">{formatCurrency(monthlyPayments)}</p>
               </div>
               <div className="bg-blue-100 p-3 rounded-full">
                 <Calendar className="h-6 w-6 text-blue-600" />
               </div>
+            </div>
+            <div className="space-y-1">
+              {Object.entries(monthlyPaymentsByCurrency).map(([currency, amount]) => (
+                <div key={currency} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600">{currency}:</span>
+                  <span className="text-lg font-bold text-gray-900">{formatCurrency(amount, currency as Currency)}</span>
+                </div>
+              ))}
+              {Object.keys(monthlyPaymentsByCurrency).length === 0 && (
+                <p className="text-lg font-bold text-gray-900">{formatCurrency(0)}</p>
+              )}
             </div>
           </div>
 
@@ -277,21 +308,57 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">Add New Payment</h2>
 
                 <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
+                  <div className="relative">
                     <label className="block text-sm font-medium text-gray-700 mb-1">Student</label>
-                    <select
-                      required
-                      value={formData.studentId}
-                      onChange={(e) => setFormData({ ...formData, studentId: e.target.value })}
+                    <input
+                      type="text"
+                      placeholder="Search student by name, admission # or class"
+                      value={studentQuery}
+                      onChange={(e) => {
+                        setStudentQuery(e.target.value);
+                        setShowSuggestions(true);
+                      }}
+                      onFocus={() => setShowSuggestions(true)}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="">Select a student</option>
-                      {students.map((student) => (
-                        <option key={student.id} value={student.id}>
-                          {student.firstName} {student.lastName} - {student.class}
-                        </option>
-                      ))}
-                    </select>
+                    />
+
+                    {/* Suggestions dropdown */}
+                    {showSuggestions && studentQuery.trim().length > 0 && (
+                      <ul className="absolute z-40 left-0 right-0 bg-white border border-gray-200 rounded shadow max-h-60 overflow-auto mt-1">
+                        {students
+                          .filter(s => {
+                            const q = studentQuery.toLowerCase();
+                            const fullName = `${s.firstName} ${s.lastName}`.toLowerCase();
+                            const admission = (s.admissionNumber || '').toLowerCase();
+                            const cls = (s.class || '').toLowerCase();
+                            return fullName.includes(q) || admission.includes(q) || cls.includes(q);
+                          })
+                          .slice(0, 20)
+                          .map(s => (
+                            <li
+                              key={s.id}
+                              onClick={() => {
+                                setFormData({ ...formData, studentId: s.id });
+                                setStudentQuery(`${s.firstName} ${s.lastName} • ${s.class}`);
+                                setShowSuggestions(false);
+                              }}
+                              className="px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm"
+                            >
+                              <div className="font-medium">{s.firstName} {s.lastName}</div>
+                              <div className="text-xs text-gray-500">{s.admissionNumber || ''} • {s.class}</div>
+                            </li>
+                          ))}
+                        {students.filter(s => {
+                          const q = studentQuery.toLowerCase();
+                          const fullName = `${s.firstName} ${s.lastName}`.toLowerCase();
+                          const admission = (s.admissionNumber || '').toLowerCase();
+                          const cls = (s.class || '').toLowerCase();
+                          return fullName.includes(q) || admission.includes(q) || cls.includes(q);
+                        }).length === 0 && (
+                          <li className="px-3 py-2 text-sm text-gray-500">No students found</li>
+                        )}
+                      </ul>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,7 +383,7 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
                       >
                         <option value="USD">USD ($)</option>
                         <option value="ZAR">ZAR (R)</option>
-                        <option value="ZIG">ZIG (Z)</option>
+                        <option value="ZiG">ZiG (Z)</option>
                       </select>
                     </div>
                   </div>
@@ -363,7 +430,7 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
                       type="submit"
                       className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg transition-colors"
                     >
-                      Add Payment
+                      Pay
                     </button>
                     <button
                       type="button"
@@ -410,9 +477,9 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
                     <Receipt className="h-8 w-8 text-white" />
                   </div>
                   <h1 className="text-3xl font-bold text-blue-600 mb-2">PAYMENT RECEIPT</h1>
-                  <p className="text-gray-600">Excellence Academy</p>
-                  <p className="text-gray-600">123 Education Street, Learning City, LC 12345</p>
-                  <p className="text-gray-600">Phone: (555) 123-4567</p>
+                  <p className="text-gray-600">Lutumba Adventist Secondary School</p>
+                  <p className="text-gray-600">P O BOX 20 ,  Lutumba, Beitbridge , Zimbabwe</p>
+                  <p className="text-gray-600">Phone: +263 77 362 7813</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-8 mb-8">
@@ -516,7 +583,7 @@ const Payments: React.FC<PaymentsProps> = ({ payments, students, onAddPayment, o
                 <div className="border-t-2 border-gray-200 pt-6 text-center">
                   <p className="text-sm text-gray-600 mb-2">Thank you for your payment!</p>
                   <p className="text-sm text-gray-600">For questions about this receipt, please contact our finance office.</p>
-                  <p className="text-sm text-gray-600">Email: finance@excellence.edu | Phone: (555) 123-4567</p>
+                  <p className="text-sm text-gray-600">Email: lutumba@gmail.com | Phone: +263 77 362 7813</p>
                   <div className="mt-4 text-xs text-gray-500">
                     <p>This is an official receipt generated on {new Date().toLocaleString()}</p>
                   </div>

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Eye, EyeOff, Mail, Lock, GraduationCap, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { LoginCredentials } from '../types';
+import SchoolLogo from './SchoolLogo';
 
 const Login: React.FC = () => {
   const [credentials, setCredentials] = useState<LoginCredentials>({
@@ -27,11 +28,11 @@ const Login: React.FC = () => {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-blue-600 rounded-full flex items-center justify-center mb-4">
-            <GraduationCap className="h-8 w-8 text-white" />
+          <div className="mx-auto mb-4 flex justify-center">
+            <SchoolLogo size="xl" />
           </div>
           <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
-          <p className="mt-2 text-gray-600">Sign in to your Excellence Academy account</p>
+          <p className="mt-2 text-gray-600">Lutumba Adventist Secondary School</p>
         </div>
 
         {/* Login Form */}
@@ -119,25 +120,31 @@ const Login: React.FC = () => {
             </button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-            <h4 className="text-sm font-medium text-gray-900 mb-2">Demo Credentials:</h4>
-            <div className="space-y-1 text-xs text-gray-600">
-              <p><strong>Admin:</strong> admin@excellence.edu / any password (6+ chars)</p>
-              <p><strong>Finance:</strong> finance@excellence.edu / any password (6+ chars)</p>
-              <p><strong>Teacher:</strong> teacher@excellence.edu / any password (6+ chars)</p>
-            </div>
+          {/* Admin Access */}
+          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <h4 className="text-sm font-medium text-blue-900 mb-2">Admin Access Required</h4>
+            <p className="text-xs text-blue-700">
+              Please enter your unique admin credentials to access the system.
+            </p>
           </div>
+
         </div>
 
         {/* Footer */}
-        <div className="text-center">
+        <div className="text-center space-y-4">
           <p className="text-sm text-gray-600">
             Don't have an account?{' '}
             <button className="font-medium text-blue-600 hover:text-blue-500 transition-colors">
               Contact administrator
             </button>
           </p>
+          
+          {/* Copyright Footer */}
+          <div className="border-t border-gray-200 pt-4">
+            <p className="text-xs text-gray-500">
+              copyrights@2025 ASHTECH technologies , Inc
+            </p>
+          </div>
         </div>
       </div>
     </div>

@@ -18,13 +18,13 @@ CREATE TABLE users (
 -- Students table
 CREATE TABLE students (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    first_name VARCHAR(50) NOT NULL,
-    last_name VARCHAR(50) NOT NULL,
-    email VARCHAR(100) UNIQUE,
+    first_name VARCHAR(50),
+    last_name VARCHAR(50),
+    email VARCHAR(100),
     phone VARCHAR(20),
-    class VARCHAR(20) NOT NULL,
+    class VARCHAR(20),
     status ENUM('active', 'inactive', 'graduated', 'transferred') DEFAULT 'active',
-    enrollment_date DATE NOT NULL,
+    enrollment_date DATE,
     total_fees DECIMAL(10,2) DEFAULT 0.00,
     paid_amount DECIMAL(10,2) DEFAULT 0.00,
     outstanding_balance DECIMAL(10,2) DEFAULT 0.00,
@@ -33,7 +33,7 @@ CREATE TABLE students (
     parent_phone VARCHAR(20),
     date_of_birth DATE,
     gender ENUM('male', 'female', 'other'),
-    admission_number VARCHAR(20) UNIQUE,
+    admission_number VARCHAR(20),
     date_of_admission DATE,
     academic_year VARCHAR(10),
     medical_notes TEXT,
@@ -152,6 +152,21 @@ CREATE TABLE exam_results (
     teacher_comment TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+);
+
+-- Expenses table
+CREATE TABLE expenses (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    description TEXT NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    currency ENUM('USD', 'ZAR', 'ZiG') DEFAULT 'USD',
+    category VARCHAR(50) NOT NULL,
+    date DATE NOT NULL,
+    payment_method ENUM('cash', 'check', 'bank_transfer') NOT NULL,
+    account_id VARCHAR(10),
+    allocation_category VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
 -- System settings table

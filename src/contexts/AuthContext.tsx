@@ -1,27 +1,16 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import { User, AuthState, LoginCredentials, RegisterData } from '../types';
 
-// Sample users for demonstration
-const sampleUsers: User[] = [
-  {
-    id: '1',
-    email: 'admin@excellence.edu',
-    name: 'Admin User',
-    role: 'admin',
-  },
-  {
-    id: '2',
-    email: 'finance@excellence.edu',
-    name: 'Finance Manager',
-    role: 'finance',
-  },
-  {
-    id: '3',
-    email: 'teacher@excellence.edu',
-    name: 'John Teacher',
-    role: 'teacher',
-  },
-];
+// Admin user credentials
+const adminUser: User = {
+  id: '1',
+  email: 'lutumba@gmail.com',
+  name: 'Admin User',
+  role: 'admin',
+};
+
+const ADMIN_PASSWORD = 'Adventist#25';
+
 
 type AuthAction =
   | { type: 'LOGIN_START' }
@@ -123,18 +112,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Find user in sample data
-      const user = sampleUsers.find(u => u.email === credentials.email);
-      
-      if (!user) {
+      // Validate admin credentials
+      if (credentials.email !== adminUser.email) {
         throw new Error('Invalid email or password');
       }
 
-      // In a real app, you would validate the password with the backend
-      // For demo purposes, we'll accept any password for existing users
-      if (credentials.password.length < 6) {
-        throw new Error('Password must be at least 6 characters');
+      if (credentials.password !== ADMIN_PASSWORD) {
+        throw new Error('Invalid email or password');
       }
+
+      const user = adminUser;
 
       // Store user in localStorage
       localStorage.setItem('user', JSON.stringify(user));
@@ -155,9 +142,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Simulate API call delay
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Check if user already exists
-      const existingUser = sampleUsers.find(u => u.email === data.email);
-      if (existingUser) {
+      // Check if user already exists (only admin user exists)
+      if (data.email === adminUser.email) {
         throw new Error('User with this email already exists');
       }
 

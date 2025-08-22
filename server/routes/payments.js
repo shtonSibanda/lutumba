@@ -37,17 +37,26 @@ router.post('/', async (req, res) => {
   try {
     const {
       studentId, studentName, amount, currency, paymentMethod,
-      paymentDate, description, invoiceNumber, status
+      paymentDate, description, invoiceNumber, status, accountId, allocations
     } = req.body;
+
+    // First, check if account_id column exists, if not add it
+    try {
+      await pool.query('ALTER TABLE payments ADD COLUMN account_id VARCHAR(10) AFTER status');
+      await pool.query('ALTER TABLE payments ADD COLUMN allocations JSON AFTER account_id');
+    } catch (error) {
+      // Column already exists, continue
+    }
 
     const [result] = await pool.query(`
       INSERT INTO payments (
         student_id, student_name, amount, currency, payment_method,
-        payment_date, description, invoice_number, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        payment_date, description, invoice_number, status, account_id, allocations
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       studentId, studentName, amount, currency, paymentMethod,
-      paymentDate, description, invoiceNumber, status || 'completed'
+      paymentDate, description, invoiceNumber, status || 'completed',
+      accountId || null, allocations ? JSON.stringify(allocations) : null
     ]);
 
     // Update student's paid amount and outstanding balance
@@ -84,7 +93,7 @@ router.put('/:id', async (req, res) => {
   try {
     const {
       studentId, studentName, amount, currency, paymentMethod,
-      paymentDate, description, invoiceNumber, status
+      paymentDate, description, invoiceNumber, status, accountId, allocations
     } = req.body;
 
     // Get old payment amount for balance adjustment
@@ -96,11 +105,13 @@ router.put('/:id', async (req, res) => {
       UPDATE payments SET
         student_id = ?, student_name = ?, amount = ?, currency = ?,
         payment_method = ?, payment_date = ?, description = ?,
-        invoice_number = ?, status = ?
+        invoice_number = ?, status = ?, account_id = ?, allocations = ?
       WHERE id = ?
     `, [
       studentId, studentName, amount, currency, paymentMethod,
-      paymentDate, description, invoiceNumber, status, req.params.id
+      paymentDate, description, invoiceNumber, status,
+      accountId || null, allocations ? JSON.stringify(allocations) : null,
+      req.params.id
     ]);
 
     // Update student balance if amount changed
